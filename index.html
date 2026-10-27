@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Панель безопасности — Сравнение городов</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel-2:#273449;
+    --text:#e2e8f0; --muted:#94a3b8;
+    --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444;
+    --accent:#38bdf8; --border:#334155;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text);
+    min-height:100vh; padding:24px;
+  }
+  header{max-width:1400px;margin:0 auto 20px}
+  h1{font-size:1.5rem;font-weight:600;margin-bottom:4px}
+  .subtitle{color:var(--muted);font-size:.9rem}
+
+  /* Панель управления */
+  .controls{
+    max-width:1400px;margin:0 auto 20px;
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:16px;
+    display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+  }
+  .city-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    display:flex;align-items:center;gap:6px;
+    background:var(--panel-2);border:1px solid var(--border);
+    border-radius:20px;padding:6px 12px;cursor:pointer;
+    font-size:.9rem;user-select:none;transition:border-color .15s;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip input{accent-color:var(--accent);cursor:pointer}
+  .chip.checked{border-color:var(--accent);background:#1e3a5f}
+
+  button{
+    background:var(--panel-2);color:var(--text);
+    border:1px solid var(--border);border-radius:8px;
+    padding:10px 14px;font-size:.9rem;cursor:pointer;
+  }
+  button:hover{background:#334155}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .status{margin-left:auto;color:var(--muted);font-size:.85rem}
+
+  /* Сетка карточек */
+  .grid{
+    max-width:1400px;margin:0 auto;
+    display:grid;gap:20px;
+    grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+  }
+
+  /* Карточка города */
+  .city-card{
+    position:relative;
+    border-radius:16px;
+    overflow:hidden;
+    min-height:420px;
+    background-size:cover;
+    background-position:center;
+    border:1px solid var(--border);
+    display:flex;flex-direction:column;
+    justify-content:flex-end;
+  }
+  .city-card::before{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(15,23,42,.15) 0%,rgba(15,23,42,.85) 65%,rgba(15,23,42,.97) 100%);
+    z-index:1;
+  }
+  .city-card-content{
+    position:relative;z-index:2;
+    padding:20px;
+  }
+  .city-name{
+    font-size:1.25rem;font-weight:700;margin-bottom:4px;
+    text-shadow:0 1px 4px rgba(0,0,0,.6);
+  }
+  .city-updated{font-size:.75rem;color:var(--muted);margin-bottom:14px}
+
+  .current-row{display:flex;align-items:center;gap:16px;margin-bottom:14px}
+  .current-icon{font-size:2.6rem;line-height:1}
+  .current-temp{font-size:2.6rem;font-weight:700;line-height:1}
+  .current-desc{color:var(--muted);font-size:.9rem}
+
+  .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .metric{
+    background:rgba(30,41,59,.7);
+    padding:8px 10px;border-radius:8px;
+    backdrop-filter:blur(4px);
+  }
+  .metric-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .metric-value{font-size:.95rem;font-weight:600;margin-top:2px}
+
+  /* Оповещения */
+  .alerts{display:flex;flex-direction:column;gap:6px}
+  .alert{
+    display:flex;gap:8px;align-items:flex-start;
+    padding:8px 10px;border-radius:8px;
+    background:rgba(30,41,59,.75);
+    border-left:3px solid var(--ok);
+    backdrop-filter:blur(4px);
+  }
+  .alert.warn{border-left-color:var(--warn)}
+  .alert.danger{border-left-color:var(--danger)}
+  .alert-icon{font-size:1rem;line-height:1.2}
+  .alert-title{font-weight:600;font-size:.85rem}
+  .alert-text{color:var(--muted);font-size:.78rem;margin-top:1px}
+
+  .placeholder{
+    max-width:1400px;margin:40px auto;text-align:center;
+    color:var(--muted);font-size:.95rem;
+  }
+
+  .error-card{
+    max-width:1400px;margin:20px auto;
+    background:#3f1d1d;border:1px solid var(--danger);
+    border-radius:12px;padding:16px;color:#fecaca;
+    font-size:.9rem;
+  }
+
+  footer{
+    max-width:1400px;margin:28px auto 0;
+    color:var(--muted);font-size:.78rem;line-height:1.6;
+  }
+  footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛡️ Панель безопасности — Сравнение городов</h1>
+  <p class="subtitle">Источник данных: MET Norway. Автообновление каждые 10 минут.</p>
+</header>
+
+<!-- Панель управления -->
+<div class="controls" id="controls">
+  <div class="city-chips" id="cityChips"></div>
+  <button id="refreshBtn">Обновить сейчас</button>
+  <span class="status" id="status">Готово</span>
+</div>
+
+<!-- Контейнер для карточек -->
+<div id="cardsContainer" class="grid"></div>
+
+<footer>
+  <p>Данные: <a href="https://api.met.no/weatherapi/locationforecast/2.0/documentation" target="_blank" rel="noopener">MET Norway Locationforecast 2.0</a>.
+     Фотографии городов: <a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a>.</p>
+  <p>Данные являются модельными и не служат официальным предупреждением о чрезвычайных ситуациях.</p>
+</footer>
+
+<script>
+/* ==== Конфигурация ==== */
+const API_BASE = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
+
+const CITIES = {
+  moscow: {
+    name: 'Москва',
+    lat: 55.7558, lon: 37.6173,
+    photo: 'https://i.pinimg.com/originals/92/87/49/9287493411259429783cecf93327e994.jpg'
+  },
+  spb: {
+    name: 'Санкт-Петербург',
+    lat: 59.9343, lon: 30.3351,
+    photo: 'https://35photo.pro/photos_temp/sizes/2421/12106088_1500n.jpg'
+  },
+  novosibirsk: {
+    name: 'Новосибирск',
+    lat: 55.0084, lon: 82.9357,
+    photo: 'https://avatars.mds.yandex.net/get-marketcms/1534436/img-acf5c2b7-d7b5-4ceb-9359-1590cf7f5023.jpeg/optimize'
+  },
+  yekaterinburg: {
+    name: 'Екатеринбург',
+    lat: 56.8389, lon: 60.6057,
+    photo: 'https://resize.tripster.ru/pWO7pYcFVUMDMs8v5hZHw4UT2d0=/fit-in/1220x600/filters:no_upscale()/https://cdn.tripster.ru/photos/a5537a21-21c6-447b-9368-12a930566dcb.jpg'
+  },
+  kazan: {
+    name: 'Казань',
+    lat: 55.8304, lon: 49.0661,
+    photo: 'https://sdelanounas.ru/i/a/w/1/f_aW1nLmdlbGlvcGhvdG8uY29tL2themFuLzAzX2themFuLmpwZz9fX2lkPTE0ODM4Nw==.jpeg'
+  },
+  vladivostok: {
+    name: 'Владивосток',
+    lat: 43.1332, lon: 131.9113,
+    photo: 'https://s9.stc.all.kpcdn.net/russia/wp-content/uploads/2023/10/buhta-zolotoj-rog-vo-vladivostoke-smotrovaya.jpg'
+  },
+  sochi: {
+    name: 'Сочи',
+    lat: 43.6028, lon: 39.7342,
+    photo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Sochi_adler_aerial_view_2018_25.jpg?width=900'
+  }
+};
+
+const THRESHOLDS = {
+  windWarn: 15, windDanger: 25,
+  rainWarn: 5, rainDanger: 15,
+  tempColdWarn: -25, tempHeatWarn: 35
+};
+
+const STORAGE_KEY = 'weather_dashboard_cities';
+const REFRESH_INTERVAL = 10 * 60 * 1000; // 10 минут
+
+/* ==== Утилиты ==== */
+const $ = (id) => document.getElementById(id);
+
+function setStatus(text, isError = false) {
+  const el = $('status');
+  el.textContent = text;
+  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+}
+
+function symbolToEmoji(code = '') {
+  const c = code.toLowerCase();
+  if (c.includes('thunder')) return '⛈️';
+  if (c.includes('heavyrain')) return '🌧️';
+  if (c.includes('rain')) return '🌦️';
+  if (c.includes('sleet')) return '🌨️';
+  if (c.includes('heavysnow')) return '❄️';
+  if (c.includes('snow')) return '🌨️';
+  if (c.includes('fog')) return '🌫️';
+  if (c.includes('cloudy')) return '☁️';
+  if (c.includes('partlycloudy')) return '⛅';
+  if (c.includes('fair')) return '🌤️';
+  if (c.includes('clearsky')) return '☀️';
+  return '🌡️';
+}
+
+function symbolToText(code = '') {
+  const c = code.toLowerCase();
+  if (c.includes('thunder')) return 'Гроза';
+  if (c.includes('heavyrain')) return 'Сильный дождь';
+  if (c.includes('rain')) return 'Дождь';
+  if (c.includes('sleet')) return 'Мокрый снег';
+  if (c.includes('heavysnow')) return 'Сильный снег';
+  if (c.includes('snow')) return 'Снег';
+  if (c.includes('fog')) return 'Туман';
+  if (c.includes('partlycloudy')) return 'Переменная облачность';
+  if (c.includes('cloudy')) return 'Облачно';
+  if (c.includes('fair')) return 'Малооблачно';
+  if (c.includes('clearsky')) return 'Ясно';
+  return '—';
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* ==== Анализ безопасности (текущий момент) ==== */
+function analyzeCurrent(ts) {
+  const now = ts[0];
+  const d = now.data.instant.details;
+  const n1 = now.data.next_1_hours?.details;
+  const sym = now.data.next_1_hours?.summary?.symbol_code || '';
+
+  const alerts = [];
+  const wind = d.wind_speed;
+  const rain = n1?.precipitation_amount ?? 0;
+  const temp = d.air_temperature;
+
+  if (wind >= THRESHOLDS.windDanger) {
+    alerts.push({ level: 'danger', icon: '💨', title: 'Опасный ветер', text: `${wind.toFixed(1)} м/с` });
+  } else if (wind >= THRESHOLDS.windWarn) {
+    alerts.push({ level: 'warn', icon: '💨', title: 'Сильный ветер', text: `${wind.toFixed(1)} м/с` });
+  }
+
+  if (rain >= THRESHOLDS.rainDanger) {
+    alerts.push({ level: 'danger', icon: '🌧️', title: 'Опасные осадки', text: `${rain.toFixed(1)} мм/ч` });
+  } else if (rain >= THRESHOLDS.rainWarn) {
+    alerts.push({ level: 'warn', icon: '🌧️', title: 'Сильные осадки', text: `${rain.toFixed(1)} мм/ч` });
+  }
+
+  if (sym.includes('thunder')) {
+    alerts.push({ level: 'warn', icon: '⛈️', title: 'Гроза', text: 'В текущий момент' });
+  }
+
+  if (temp <= THRESHOLDS.tempColdWarn) {
+    alerts.push({ level: 'danger', icon: '🥶', title: 'Экстремальный холод', text: `${temp.toFixed(1)} °C` });
+  } else if (temp >= THRESHOLDS.tempHeatWarn) {
+    alerts.push({ level: 'warn', icon: '🥵', title: 'Экстремальная жара', text: `${temp.toFixed(1)} °C` });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({ level: 'ok', icon: '✅', title: 'Опасных условий нет', text: 'Параметры в норме' });
+  }
+
+  return alerts;
+}
+
+/* ==== Рендеринг одной карточки ==== */
+function renderCityCard(cityKey, data) {
+  const city = CITIES[cityKey];
+  const ts = data.properties.timeseries;
+  const now = ts[0];
+  const d = now.data.instant.details;
+  const n1 = now.data.next_1_hours?.details;
+  const sym = now.data.next_1_hours?.summary?.symbol_code
+           || now.data.next_6_hours?.summary?.symbol_code || '';
+
+  const alerts = analyzeCurrent(ts);
+
+  const alertsHtml = alerts.map(a => `
+    <div class="alert ${a.level}">
+      <div class="alert-icon">${a.icon}</div>
+      <div>
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-text">${a.text}</div>
+      </div>
+    </div>
+  `).join('');
+
+  return `
+    <article class="city-card" style="background-image:url('${city.photo}')">
+      <div class="city-card-content">
+        <div class="city-name">${city.name}</div>
+        <div class="city-updated">Обновлено: ${fmtTime(now.time)}</div>
+
+        <div class="current-row">
+          <div class="current-icon">${symbolToEmoji(sym)}</div>
+          <div>
+            <div class="current-temp">${d.air_temperature.toFixed(1)}°C</div>
+            <div class="current-desc">${symbolToText(sym)}</div>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Ветер</div>
+            <div class="metric-value">${d.wind_speed.toFixed(1)} м/с</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Осадки (1 ч)</div>
+            <div class="metric-value">${(n1?.precipitation_amount ?? 0).toFixed(1)} мм</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Влажность</div>
+            <div class="metric-value">${d.relative_humidity.toFixed(0)} %</div>
+          </div>
+        </div>
+
+        <div class="alerts">${alertsHtml}</div>
+      </div>
+    </article>
+  `;
+}
+
+/* ==== Загрузка данных для одного города ==== */
+async function fetchCity(cityKey) {
+  const city = CITIES[cityKey];
+  const url = `${API_BASE}?lat=${city.lat}&lon=${city.lon}`;
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status} для ${city.name}`);
+  return res.json();
+}
+
+/* ==== Загрузка всех выбранных городов ==== */
+async function loadSelectedCities() {
+  const selected = getSelectedCities();
+  const container = $('cardsContainer');
+
+  if (selected.length === 0) {
+    container.innerHTML = '<div class="placeholder">Выберите хотя бы один город в панели выше.</div>';
+    setStatus('Нет выбранных городов');
+    return;
+  }
+
+  container.innerHTML = '<div class="placeholder">Загрузка данных…</div>';
+  $('refreshBtn').disabled = true;
+  setStatus('Загрузка…');
+
+  const results = await Promise.allSettled(
+    selected.map(key => fetchCity(key).then(data => ({ key, data })))
+  );
+
+  const cards = [];
+  const errors = [];
+
+  results.forEach((result, i) => {
+    const key = selected[i];
+    if (result.status === 'fulfilled') {
+      cards.push(renderCityCard(key, result.value.data));
+    } else {
+      errors.push(`${CITIES[key].name}: ${result.reason.message}`);
+    }
+  });
+
+  if (cards.length > 0) {
+    container.innerHTML = cards.join('');
+  } else {
+    container.innerHTML = '<div class="placeholder">Не удалось загрузить данные ни для одного города.</div>';
+  }
+
+  if (errors.length > 0) {
+    container.innerHTML += `<div class="error-card"><strong>Ошибки:</strong><br>${errors.join('<br>')}</div>`;
+    setStatus('Частичная ошибка', true);
+  } else {
+    setStatus('Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
+  }
+
+  $('refreshBtn').disabled = false;
+}
+
+/* ==== Работа с localStorage ==== */
+function getSelectedCities() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return ['moscow']; // по умолчанию
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter(k => CITIES[k]) : ['moscow'];
+  } catch {
+    return ['moscow'];
+  }
+}
+
+function saveSelectedCities(keys) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+}
+
+/* ==== Отрисовка чипов выбора городов ==== */
+function renderCityChips() {
+  const selected = getSelectedCities();
+  const container = $('cityChips');
+
+  container.innerHTML = Object.entries(CITIES).map(([key, city]) => {
+    const checked = selected.includes(key) ? 'checked' : '';
+    return `
+      <label class="chip ${checked ? 'checked' : ''}" data-key="${key}">
+        <input type="checkbox" value="${key}" ${checked ? 'checked' : ''}>
+        ${city.name}
+      </label>
+    `;
+  }).join('');
+
+  // Обработчики
+  container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const chip = cb.closest('.chip');
+      chip.classList.toggle('checked', cb.checked);
+
+      const selected = [...container.querySelectorAll('input:checked')].map(i => i.value);
+      saveSelectedCities(selected);
+      loadSelectedCities();
+    });
+  });
+}
+
+/* ==== Инициализация ==== */
+function init() {
+  renderCityChips();
+  loadSelectedCities();
+
+  $('refreshBtn').addEventListener('click', loadSelectedCities);
+
+  // Автообновление каждые 10 минут
+  setInterval(() => {
+    console.log('Автообновление…');
+    loadSelectedCities();
+  }, REFRESH_INTERVAL);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
